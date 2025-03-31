@@ -1,0 +1,160 @@
+package lab5_6_pak
+public
+	with Base_Types; -- np. Base_Types::Character
+	with Data_Model;
+	
+	
+  data TemperatureType
+     properties
+       Data_Model::Data_Representation => Integer;
+  end TemperatureType;
+  
+  data HeaterControlType
+    properties
+      Data_Model::Data_Representation => Boolean;
+  end HeaterControlType;
+  
+  device TempSensor
+    features
+      Temp : out data port TemperatureType;
+  end TempSensor;
+
+  device implementation TempSensor.impl
+  end TempSensor.impl;
+  
+  device Heater
+    features
+      Power : in data port HeaterControlType;
+  end Heater;
+
+  device implementation Heater.impl
+  end Heater.impl;
+  
+  thread TempReader
+    features
+      TempIn : in data port TemperatureType;
+      Temp   : out data port TemperatureType;
+    properties
+      Dispatch_Protocol => Periodic;
+      Period => 800ms;
+      Compute_Execution_Time => 0ms..2ms;
+  end TempReader;
+
+  thread implementation TempReader.impl
+  end TempReader.impl;
+  
+  
+  thread ControlLogic
+    features
+      Temp    : in data port TemperatureType;
+      HeatCmd : out data port HeaterControlType;
+    properties
+      Dispatch_Protocol => Periodic;
+      Period => 800ms;
+      Compute_Execution_Time => 0ms..2ms;
+  end ControlLogic;
+
+  thread implementation ControlLogic.impl
+  end ControlLogic.impl;
+  
+  
+  thread HeaterDriver
+    features
+      PowerIn : in data port HeaterControlType;
+      PowerOut: out data port HeaterControlType;
+    properties
+      Dispatch_Protocol => Periodic;
+      Period => 800ms;
+      Compute_Execution_Time => 0ms..2ms;
+  end HeaterDriver;
+
+  thread implementation HeaterDriver.impl
+  end HeaterDriver.impl;
+  
+  bus ethernet
+  end ethernet;
+  
+  processor corei5
+   		features
+			eth: requires bus access ethernet;
+   		properties
+			Scheduling_Protocol => (Round_Robin_Protocol);
+			Clock_Period => 1 ms;	
+        	Timing_Properties::Processor_Capacity => 1.0 MIPS;
+	end corei5;
+  
+  process Reader
+  	features
+    	SensorIn  : in data port TemperatureType;
+    	SensorOut : out data port TemperatureType;
+  end Reader;
+
+  process implementation Reader.impl
+    subcomponents
+      TempReader : thread TempReader.impl;
+    connections
+      conn1 : port SensorIn -> TempReader.TempIn;
+      conn2 : port TempReader.Temp -> SensorOut;
+  end Reader.impl;
+  
+  process Controller
+  	features
+    	ControlIn  : in data port TemperatureType;
+    	ControlOut : out data port HeaterControlType;
+  end Controller;
+
+  process implementation Controller.impl
+    subcomponents
+      Control    : thread ControlLogic.impl;
+    connections
+      conn3 : port ControlIn -> Control.Temp;
+      conn4 : port Control.HeatCmd -> ControlOut;
+  end Controller.impl;
+  
+  process Heat
+  	features
+  		HeaterIn  : in data port HeaterControlType;
+    	HeaterOut : out data port HeaterControlType;
+  end Heat;
+
+  process implementation Heat.impl
+    subcomponents
+      HeaterCtrl : thread HeaterDriver.impl;
+    connections
+      conn5 : port HeaterIn -> HeaterCtrl.PowerIn;
+      conn6 : port HeaterCtrl.PowerOut -> HeaterOut;
+  end Heat.impl;
+  
+  
+  system TempControlSystem
+  end TempControlSystem;
+
+  system implementation TempControlSystem.impl
+    subcomponents
+      Sensor  : device TempSensor.impl;
+      Heater  : device Heater.impl;
+      Read_pr : process Reader.impl;
+      Cont_pr : process Controller.impl;
+      Heat_pr : process Heat.impl;
+      Read_cpu: processor corei5;
+	  Cont_cpu: processor corei5;
+	  Heat_cpu: processor corei5;
+	  Mag_bus : bus ethernet;
+  	connections
+  	  eth1: bus access Read_cpu.eth -> Mag_bus;
+	  eth2: bus access Mag_bus -> Cont_cpu.eth;
+	  eth3: bus access Mag_bus -> Heat_cpu.eth;
+	  s_to_r : port Sensor.Temp -> Read_pr.SensorIn;
+      r_to_c : port Read_pr.SensorOut -> Cont_pr.ControlIn;
+      c_to_h : port Cont_pr.ControlOut -> Heat_pr.HeaterIn;
+      h_to_he: port Heat_pr.HeaterOut -> Heater.Power;
+    properties
+	  Actual_Connection_Binding  => (reference(Mag_bus)) applies to r_to_c;
+	  Actual_Connection_Binding  => (reference(Mag_bus)) applies to c_to_h;
+	  Actual_Processor_Binding => (reference(Read_cpu))  applies to Read_pr;
+	  Actual_Processor_Binding => (reference(Cont_cpu)) applies to Cont_pr;
+	  Actual_Processor_Binding => (reference(Heat_cpu)) applies to Heat_pr;
+	      
+  end TempControlSystem.impl;
+	
+end lab5_6_pak;

@@ -1,0 +1,90 @@
+package lab5_pak
+public
+	with Base_Types; -- np. Base_Types::Character
+	
+	thread producent
+	  features
+	    Wstaw : out data port Base_Types::Character; 
+	  properties
+	    Dispatch_Protocol => Periodic;
+	    Dispatch_Offset => 10ms;
+	    Deadline => 15ms;	
+	    Period => 800ms;
+	    Compute_Execution_Time => 0ms..2ms;
+	end producent;
+	 
+	thread implementation producent.impl
+	end producent.impl;
+
+	thread konsument
+	  features
+	    Pobierz : in data port Base_Types::Character;
+	  properties
+	    Dispatch_Protocol => Periodic;
+	    Dispatch_Offset => 40ms;
+	    Deadline => 10ms;	
+	    Period => 800ms;
+	    Compute_Execution_Time => 0ms..2ms;
+	end konsument;
+
+	thread implementation konsument.impl
+	end konsument.impl;
+	
+	bus ethernet
+	end ethernet;
+	
+	processor corei5
+   		features
+			eth: requires bus access ethernet;
+   		properties
+			Scheduling_Protocol => (Round_Robin_Protocol);
+			Clock_Period => 1 ms;	
+        	Timing_Properties::Processor_Capacity => 1.0 MIPS;
+	end corei5;
+	
+	process Prod_proc
+		features
+			Wstaw: out data port Base_Types::Character;
+	end Prod_proc;
+	 
+	process implementation Prod_proc.impl
+	   subcomponents
+	     	Prod : thread producent.impl; 
+		connections
+		 	pp_conn: port Prod.Wstaw -> Wstaw;
+	end Prod_proc.impl;
+	
+	process Kons_proc
+		features
+			Pobierz: in data port Base_Types::Character;
+	end Kons_proc;
+	 
+	process implementation Kons_proc.impl
+	   subcomponents
+	     	Kons : thread konsument.impl; 
+	   connections
+	    	pk_conn: port Pobierz -> Kons.Pobierz;
+	end Kons_proc.impl;
+	
+	
+	system Prod_Consum
+	end Prod_Consum;
+	 
+	system implementation Prod_Consum.impl
+	  	subcomponents
+		    Prod_pr : process Prod_proc.impl;
+		    Kons_pr : process Kons_proc.impl;
+		    Prod_cpu: processor corei5;
+			Kons_cpu: processor corei5;
+			Mag_bus : bus ethernet;
+		connections
+			eth1: bus access Prod_cpu.eth -> Mag_bus;
+		    eth2: bus access Mag_bus -> Kons_cpu.eth;
+		    Prod_Kons_conn: port Prod_pr.Wstaw -> Kons_pr.Pobierz;
+		properties
+			Actual_Connection_Binding  => (reference(Mag_bus)) applies to Prod_Kons_conn;
+			Actual_Processor_Binding => (reference(Prod_cpu))  applies to Prod_pr;
+			Actual_Processor_Binding => (reference(Kons_cpu)) applies to Kons_pr;
+	end Prod_Consum.impl;
+	
+end lab5_pak;
